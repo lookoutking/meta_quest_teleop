@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenXR vs ROS 坐標系 — Meta Quest Teleop</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --text-dim: #484f58;
+    --openxr: #388bfd;
+    --openxr-dim: #1a3a6e;
+    --ros: #2ea043;
+    --ros-dim: #143d1f;
+    --ax-x: #ff7b72;
+    --ax-y: #7ee787;
+    --ax-z: #79c0ff;
+    --highlight: #f0a844;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f8fa;
+      --surface: #ffffff;
+      --surface2: #f0f2f5;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --text-muted: #636c76;
+      --text-dim: #adb5bd;
+      --openxr: #0969da;
+      --openxr-dim: #dbeafe;
+      --ros: #1a7f37;
+      --ros-dim: #dcfce7;
+      --ax-x: #cf222e;
+      --ax-y: #1a7f37;
+      --ax-z: #0969da;
+      --highlight: #9a6700;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f8fa;
+    --surface: #ffffff;
+    --surface2: #f0f2f5;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --text-muted: #636c76;
+    --text-dim: #adb5bd;
+    --openxr: #0969da;
+    --openxr-dim: #dbeafe;
+    --ros: #1a7f37;
+    --ros-dim: #dcfce7;
+    --ax-x: #cf222e;
+    --ax-y: #1a7f37;
+    --ax-z: #0969da;
+    --highlight: #9a6700;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --text-dim: #484f58;
+    --openxr: #388bfd;
+    --openxr-dim: #1a3a6e;
+    --ros: #2ea043;
+    --ros-dim: #143d1f;
+    --ax-x: #ff7b72;
+    --ax-y: #7ee787;
+    --ax-z: #79c0ff;
+    --highlight: #f0a844;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .badge {
+    font-size: 11px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 20px;
+    border: 1px solid;
+  }
+  .badge-openxr { color: var(--openxr); border-color: var(--openxr); background: var(--openxr-dim); }
+  .badge-ros    { color: var(--ros);    border-color: var(--ros);    background: var(--ros-dim); }
+  h1 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+    text-wrap: balance;
+  }
+  .theme-toggle {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 6px 12px;
+    transition: color .15s, background .15s;
+  }
+  .theme-toggle:hover { color: var(--text); background: var(--border); }
+
+  /* ── Canvas section ── */
+  .canvas-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .canvas-panel {
+    background: var(--surface);
+    padding: 0;
+    position: relative;
+    cursor: grab;
+    user-select: none;
+  }
+  .canvas-panel:active { cursor: grabbing; }
+  .panel-header {
+    padding: 14px 20px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .panel-title {
+    font-size: 15px;
+    font-weight: 600;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  .panel-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    touch-action: none;
+  }
+  .drag-hint {
+    position: absolute;
+    bottom: 10px;
+    right: 14px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    pointer-events: none;
+  }
+
+  /* ── Axis legend ── */
+  .axis-legend {
+    display: flex;
+    gap: 16px;
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .axis-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  .axis-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── Summary table ── */
+  .content { max-width: 900px; margin: 0 auto; padding: 40px 32px 64px; }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin-bottom: 40px;
+    overflow-x: auto;
+  }
+  .compare-table th {
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 16px;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-muted);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .compare-table td {
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .compare-table tr:last-child td { border-bottom: none; }
+  .compare-table tr:hover td { background: var(--surface2); }
+
+  .axis-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .direction-arrow {
+    font-size: 18px;
+    vertical-align: middle;
+  }
+  .dir-label {
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .ch-label {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* ── Conversion block ── */
+  .conversion-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 40px;
+  }
+  .conversion-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--surface2);
+  }
+  .conversion-body { padding: 20px; }
+  .quat-display {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    color: var(--highlight);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 10px 0 16px;
+    display: inline-block;
+  }
+  .matrix-wrap { overflow-x: auto; }
+  .matrix {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 18px;
+    display: inline-block;
+    line-height: 1.9;
+    white-space: pre;
+  }
+  .matrix .val-pos { color: var(--ax-y); }
+  .matrix .val-neg { color: var(--ax-x); }
+  .matrix .val-zero { color: var(--text-dim); }
+
+  .conversion-note {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 14px;
+    line-height: 1.7;
+  }
+  .conversion-note code {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--text);
+  }
+
+  /* ── Axis flow diagram ── */
+  .axis-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin: 16px 0;
+    row-gap: 10px;
+  }
+  .flow-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 13px;
+  }
+  .flow-arrow {
+    color: var(--text-dim);
+    margin: 0 8px;
+    font-size: 16px;
+  }
+  .flow-from { font-weight: 700; }
+  .flow-to   { font-weight: 500; color: var(--text-muted); }
+
+  /* ── Code snippet ── */
+  .code-block {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    overflow-x: auto;
+    margin-bottom: 32px;
+    white-space: pre;
+  }
+  .kw { color: var(--openxr); }
+  .fn { color: var(--highlight); }
+  .cm { color: var(--text-dim); }
+  .st { color: var(--ax-y); }
+
+  h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    text-wrap: balance;
+  }
+  p { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.7; }
+
+  @media (max-width: 640px) {
+    .canvas-row { grid-template-columns: 1fr; }
+    header { padding: 16px; }
+    .content { padding: 24px 16px 48px; }
+    h1 { font-size: 15px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span class="badge badge-openxr">OpenXR</span>
+    <span style="color:var(--text-dim);font-size:18px;">↔</span>
+    <span class="badge badge-ros">ROS</span>
+    <h1>坐標系差異視覺化</h1>
+  </div>
+  <button class="theme-toggle" onclick="toggleTheme()" aria-label="切換主題">☀︎ / ☾</button>
+</header>
+
+<div class="canvas-row">
+  <!-- OpenXR Panel -->
+  <div class="canvas-panel" id="panel-openxr">
+    <div class="panel-header">
+      <span class="badge badge-openxr">OpenXR</span>
+      <span class="panel-title" style="color:var(--openxr)">Meta Quest 原生坐標系</span>
+      <span class="panel-sub">get_hand_controller_transform_openxr()</span>
+    </div>
+    <canvas id="canvas-openxr" height="320"></canvas>
+    <div class="axis-legend">
+      <div class="axis-item"><div class="axis-dot" style="background:var(--ax-x)"></div>X 右</div>
+      <div class="axis-item"><div class="axis-dot" style="background:var(--ax-y)"></div>Y 上</div>
+      <div class="axis-item"><div class="axis-dot" style="background:var(--ax-z)"></div>Z 後（朝向使用者）</div>
+    </div>
+    <div class="drag-hint">← 拖曳旋轉 →</div>
+  </div>
+
+  <!-- ROS Panel -->
+  <div class="canvas-panel" id="panel-ros">
+    <div class="panel-header">
+      <span class="badge badge-ros">ROS</span>
+      <span class="panel-title" style="color:var(--ros)">ROS 坐標系</span>
+      <span class="panel-sub">get_hand_controller_transform_ros()</span>
+    </div>
+    <canvas id="canvas-ros" height="320"></canvas>
+    <div class="axis-legend">
+      <div class="axis-item"><div class="axis-dot" style="background:var(--ax-x)"></div>X 前</div>
+      <div class="axis-item"><div class="axis-dot" style="background:var(--ax-y)"></div>Y 左</div>
+      <div class="axis-item"><div class="axis-dot" style="background:var(--ax-z)"></div>Z 上</div>
+    </div>
+    <div class="drag-hint">← 拖曳旋轉 →</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="section-label">軸向對照表</div>
+  <div style="overflow-x:auto;margin-bottom:40px">
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>軸</th>
+        <th style="color:var(--openxr)">OpenXR（Meta Quest 原生）</th>
+        <th style="color:var(--ros)">ROS（機器人標準）</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="axis-tag"><span class="axis-dot" style="background:var(--ax-x);width:10px;height:10px;border-radius:50%;display:inline-block"></span>X</span></td>
+        <td><span class="direction-arrow">→</span> <span class="dir-label">右（Right）</span></td>
+        <td><span class="direction-arrow">↑</span> <span class="dir-label">前（Forward）</span></td>
+      </tr>
+      <tr>
+        <td><span class="axis-tag"><span class="axis-dot" style="background:var(--ax-y);width:10px;height:10px;border-radius:50%;display:inline-block"></span>Y</span></td>
+        <td><span class="direction-arrow">↑</span> <span class="dir-label">上（Up）</span></td>
+        <td><span class="direction-arrow">←</span> <span class="dir-label">左（Left）</span></td>
+      </tr>
+      <tr>
+        <td><span class="axis-tag"><span class="axis-dot" style="background:var(--ax-z);width:10px;height:10px;border-radius:50%;display:inline-block"></span>Z</span></td>
+        <td><span class="direction-arrow">↗</span> <span class="dir-label">後（Backward）朝使用者</span></td>
+        <td><span class="direction-arrow">↑</span> <span class="dir-label">上（Up）</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="section-label">轉換說明</div>
+  <div class="conversion-block">
+    <div class="conversion-header">OpenXR → ROS：靜態旋轉四元數</div>
+    <div class="conversion-body">
+      <p>程式碼中使用一個固定的旋轉四元數 <code>[x, y, z, w]</code> 來完成坐標系轉換：</p>
+      <div class="quat-display">Q = [0.5, -0.5, -0.5, 0.5]</div>
+
+      <p>展開為旋轉矩陣 T_static，再左乘到原始矩陣：</p>
+      <div class="matrix-wrap">
+        <div class="matrix">T_static =
+⎡ <span class="val-zero"> 0</span>  <span class="val-zero"> 0</span>  <span class="val-pos">+1</span>  <span class="val-zero">0</span> ⎤
+⎢ <span class="val-neg">-1</span>  <span class="val-zero"> 0</span>  <span class="val-zero"> 0</span>  <span class="val-zero">0</span> ⎥
+⎢ <span class="val-zero"> 0</span>  <span class="val-neg">-1</span>  <span class="val-zero"> 0</span>  <span class="val-zero">0</span> ⎥
+⎣ <span class="val-zero"> 0</span>  <span class="val-zero"> 0</span>  <span class="val-zero"> 0</span>  <span class="val-pos">1</span> ⎦
+
+T_ros = T_static @ T_openxr</div>
+      </div>
+
+      <p style="margin-top:16px">軸向映射關係：</p>
+      <div class="axis-flow">
+        <div class="flow-item">
+          <span class="flow-from" style="color:var(--ax-z)">OpenXR Z（後）</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-to" style="color:var(--ax-x)">ROS X（前）</span>
+        </div>
+        <span class="flow-arrow" style="margin:0 4px">・</span>
+        <div class="flow-item">
+          <span class="flow-from" style="color:var(--ax-x)">OpenXR X（右）</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-to" style="color:var(--ax-y)">ROS −Y（左）</span>
+        </div>
+        <span class="flow-arrow" style="margin:0 4px">・</span>
+        <div class="flow-item">
+          <span class="flow-from" style="color:var(--ax-y)">OpenXR Y（上）</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-to" style="color:var(--ax-z)">ROS −Z（上）</span>
+        </div>
+      </div>
+
+      <div class="conversion-note">
+        直覺理解：OpenXR 的 Z 軸「背對你」（+Z 朝向使用者背後），ROS 的 X 軸「面向前方」。
+        這個旋轉把整個坐標框架繞空間轉了 90°，讓機器人的「前進方向」對齊 ROS 慣例。
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">程式碼使用方式</div>
+  <h2>選擇正確的 API</h2>
+  <div class="code-block"><span class="kw">from</span> meta_quest_teleop.reader <span class="kw">import</span> MetaQuestReader
+
+reader = MetaQuestReader()
+
+<span class="cm"># ── OpenXR 原生坐標 ─────────────────────────────────</span>
+<span class="cm"># 適合：直接處理 Meta Quest 資料、與 XR SDK 整合</span>
+T_openxr = reader.<span class="fn">get_hand_controller_transform_openxr</span>(<span class="st">"right"</span>)
+<span class="cm"># X=右, Y=上, Z=後（朝使用者）</span>
+
+<span class="cm"># ── ROS 坐標 ────────────────────────────────────────</span>
+<span class="cm"># 適合：機器人控制、tf2 整合、Nav2、MoveIt</span>
+T_ros = reader.<span class="fn">get_hand_controller_transform_ros</span>(<span class="st">"right"</span>)
+<span class="cm"># X=前, Y=左, Z=上（REP-103 標準）</span>
+
+<span class="cm"># ── TF 發布（ros_visualiser/ros2_tf_publisher.py）──</span>
+<span class="cm"># 以 meta_world frame（OpenXR）發布，</span>
+<span class="cm"># 靜態 TF 連結到 map frame（ROS），tf2 自動處理轉換</span></div>
+
+</div><!-- /content -->
+
+<script>
+/* ── Theme toggle ── */
+function toggleTheme() {
+  const root = document.documentElement;
+  const cur = root.getAttribute('data-theme');
+  const isDark = cur === 'dark' || (!cur && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  redrawAll();
+}
+
+/* ── Color helpers that read CSS vars ── */
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/* ── 3D math ── */
+function rotX(angle) {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  return [[1,0,0],[0,c,-s],[0,s,c]];
+}
+function rotY(angle) {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  return [[c,0,s],[0,1,0],[-s,0,c]];
+}
+function mulMV(m, v) {
+  return [
+    m[0][0]*v[0] + m[0][1]*v[1] + m[0][2]*v[2],
+    m[1][0]*v[0] + m[1][1]*v[1] + m[1][2]*v[2],
+    m[2][0]*v[0] + m[2][1]*v[1] + m[2][2]*v[2],
+  ];
+}
+function mulMM(a, b) {
+  const r = [[0,0,0],[0,0,0],[0,0,0]];
+  for (let i=0;i<3;i++) for (let j=0;j<3;j++) for (let k=0;k<3;k++) r[i][j]+=a[i][k]*b[k][j];
+  return r;
+}
+function project(v, cx, cy, scale, fov=400) {
+  const z = v[2] + fov;
+  const f = fov / z;
+  return [cx + v[0]*scale*f, cy - v[1]*scale*f, v[2]];
+}
+
+/* ── Draw arrow ── */
+function drawArrow(ctx, from3, to3, rot, cx, cy, scale, color, label, labelColor) {
+  const fv = mulMV(rot, from3);
+  const tv = mulMV(rot, to3);
+  const [fx, fy] = project(fv, cx, cy, scale);
+  const [tx, ty, tz] = project(tv, cx, cy, scale);
+
+  const dimFactor = Math.max(0.35, Math.min(1, (tz + 200) / 300));
+  ctx.globalAlpha = dimFactor;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 2.5;
+
+  ctx.beginPath();
+  ctx.moveTo(fx, fy);
+  ctx.lineTo(tx, ty);
+  ctx.stroke();
+
+  // Arrowhead
+  const angle = Math.atan2(ty - fy, tx - fx);
+  const hs = 10 * dimFactor;
+  ctx.beginPath();
+  ctx.moveTo(tx, ty);
+  ctx.lineTo(tx - hs*Math.cos(angle-0.4), ty - hs*Math.sin(angle-0.4));
+  ctx.lineTo(tx - hs*Math.cos(angle+0.4), ty - hs*Math.sin(angle+0.4));
+  ctx.closePath();
+  ctx.fill();
+
+  // Label
+  ctx.globalAlpha = dimFactor * 0.95;
+  ctx.font = "bold 13px ui-monospace, 'SFMono-Regular', monospace";
+  ctx.fillStyle = labelColor || color;
+  ctx.fillText(label, tx + 8, ty + 4);
+
+  ctx.globalAlpha = 1;
+}
+
+/* ── Draw grid floor ── */
+function drawGrid(ctx, rot, cx, cy, scale) {
+  const gridColor = cssVar('--border');
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 0.8;
+  ctx.globalAlpha = 0.4;
+  const N = 4, step = 0.4;
+  for (let i = -N; i <= N; i++) {
+    const p1 = mulMV(rot, [i*step, -0.05, -N*step]);
+    const p2 = mulMV(rot, [i*step, -0.05,  N*step]);
+    const p3 = mulMV(rot, [-N*step, -0.05, i*step]);
+    const p4 = mulMV(rot, [ N*step, -0.05, i*step]);
+    const [x1,y1] = project(p1, cx, cy, scale);
+    const [x2,y2] = project(p2, cx, cy, scale);
+    const [x3,y3] = project(p3, cx, cy, scale);
+    const [x4,y4] = project(p4, cx, cy, scale);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x3,y3); ctx.lineTo(x4,y4); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ── Draw a simple "controller" shape ── */
+function drawController(ctx, rot, cx, cy, scale, fwdAxis) {
+  // fwdAxis: the forward-pointing axis in this coord system [x,y,z]
+  const bodyPts = [
+    [-0.08, -0.05, -0.15], [ 0.08, -0.05, -0.15],
+    [ 0.08,  0.05, -0.15], [-0.08,  0.05, -0.15],
+    [-0.08, -0.05,  0.15], [ 0.08, -0.05,  0.15],
+    [ 0.08,  0.05,  0.15], [-0.08,  0.05,  0.15],
+  ];
+  const edges = [
+    [0,1],[1,2],[2,3],[3,0], // back
+    [4,5],[5,6],[6,7],[7,4], // front
+    [0,4],[1,5],[2,6],[3,7], // sides
+  ];
+
+  // Offset box so origin is clear
+  const offset = [0, 0.1, 0];
+  const projected = bodyPts.map(p => {
+    const shifted = [p[0]+offset[0], p[1]+offset[1], p[2]+offset[2]];
+    return project(mulMV(rot, shifted), cx, cy, scale);
+  });
+
+  ctx.strokeStyle = cssVar('--text-dim');
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.5;
+  edges.forEach(([a,b]) => {
+    ctx.beginPath();
+    ctx.moveTo(projected[a][0], projected[a][1]);
+    ctx.lineTo(projected[b][0], projected[b][1]);
+    ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+}
+
+/* ── Draw origin sphere ── */
+function drawOrigin(ctx, cx, cy) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI*2);
+  ctx.fillStyle = cssVar('--text-muted');
+  ctx.fill();
+}
+
+/* ── Per-panel state ── */
+const panels = {
+  openxr: { rotX: 0.4, rotY: -0.5, dragging: false, lastX: 0, lastY: 0 },
+  ros:    { rotX: 0.4, rotY: -0.5, dragging: false, lastX: 0, lastY: 0 },
+};
+
+const axes = {
+  openxr: [
+    { from: [0,0,0], to: [1,0,0], color: '--ax-x', label: 'X  右' },
+    { from: [0,0,0], to: [0,1,0], color: '--ax-y', label: 'Y  上' },
+    { from: [0,0,0], to: [0,0,1], color: '--ax-z', label: 'Z  後' },
+  ],
+  ros: [
+    { from: [0,0,0], to: [1,0,0], color: '--ax-x', label: 'X  前' },
+    { from: [0,0,0], to: [0,1,0], color: '--ax-y', label: 'Y  左' },
+    { from: [0,0,0], to: [0,0,1], color: '--ax-z', label: 'Z  上' },
+  ],
+};
+
+/* ── Draw a panel ── */
+function drawPanel(id) {
+  const canvas = document.getElementById('canvas-' + id);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = cssVar('--surface');
+  ctx.fillRect(0, 0, W, H);
+
+  const state = panels[id];
+  const rot = mulMM(rotX(state.rotX), rotY(state.rotY));
+  const cx = W / 2, cy = H / 2 + 20;
+  const scale = Math.min(W, H) * 0.28;
+
+  drawGrid(ctx, rot, cx, cy, scale);
+  drawController(ctx, rot, cx, cy, scale);
+
+  // Sort axes by depth (painter's algorithm)
+  const axisData = axes[id].map(ax => {
+    const tv = mulMV(rot, ax.to);
+    return { ...ax, depth: tv[2] };
+  }).sort((a,b) => a.depth - b.depth);
+
+  axisData.forEach(ax => {
+    drawArrow(ctx, ax.from, ax.to, rot, cx, cy, scale, cssVar(ax.color), ax.label);
+  });
+
+  drawOrigin(ctx, cx, cy);
+}
+
+function redrawAll() {
+  drawPanel('openxr');
+  drawPanel('ros');
+}
+
+/* ── Resize canvases ── */
+function resizeCanvases() {
+  ['openxr', 'ros'].forEach(id => {
+    const canvas = document.getElementById('canvas-' + id);
+    const panel = document.getElementById('panel-' + id);
+    const dpr = window.devicePixelRatio || 1;
+    const w = panel.clientWidth;
+    const h = 320;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.height = h + 'px';
+    canvas.getContext('2d').scale(dpr, dpr);
+  });
+  redrawAll();
+}
+
+/* ── Mouse / touch events ── */
+function addDragEvents(id) {
+  const canvas = document.getElementById('canvas-' + id);
+  const state = panels[id];
+
+  function onDown(x, y) {
+    state.dragging = true;
+    state.lastX = x; state.lastY = y;
+  }
+  function onMove(x, y) {
+    if (!state.dragging) return;
+    const dx = x - state.lastX, dy = y - state.lastY;
+    state.rotY += dx * 0.008;
+    state.rotX += dy * 0.008;
+    state.rotX = Math.max(-1.2, Math.min(1.2, state.rotX));
+    state.lastX = x; state.lastY = y;
+    drawPanel(id);
+  }
+  function onUp() { state.dragging = false; }
+
+  canvas.addEventListener('mousedown',  e => onDown(e.clientX, e.clientY));
+  window.addEventListener('mousemove',  e => onMove(e.clientX, e.clientY));
+  window.addEventListener('mouseup',    onUp);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); onDown(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+  canvas.addEventListener('touchmove',  e => { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+  canvas.addEventListener('touchend',   onUp);
+}
+
+/* ── Init ── */
+window.addEventListener('DOMContentLoaded', () => {
+  addDragEvents('openxr');
+  addDragEvents('ros');
+  resizeCanvases();
+});
+window.addEventListener('resize', resizeCanvases);
+</script>
+</body>
+</html>
