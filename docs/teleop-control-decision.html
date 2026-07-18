@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VR 遙操作控制方法決策報告</title>
+<style>
+  :root {
+    --bg:        #f5f6f8;
+    --surface:   #ffffff;
+    --surface2:  #eef0f3;
+    --border:    #d4d9e0;
+    --border2:   #e8eaed;
+    --text:      #1a2130;
+    --text-muted:#5a6478;
+    --text-dim:  #9aa3b2;
+    --accent:    #2e6da4;
+    --accent-bg: #e8f0f8;
+    --good:      #2a7d4f;
+    --good-bg:   #e6f4ec;
+    --warn:      #8a5c00;
+    --warn-bg:   #fef3dc;
+    --bad:       #b83232;
+    --bad-bg:    #fdeaea;
+    --rec:       #1a5c8a;
+    --rec-bg:    #ddeef9;
+    --neutral:   #4a5568;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:        #0e1318;
+      --surface:   #161d26;
+      --surface2:  #1e2832;
+      --border:    #2a3545;
+      --border2:   #243040;
+      --text:      #dde3ed;
+      --text-muted:#7d8fa8;
+      --text-dim:  #445566;
+      --accent:    #5b9bd5;
+      --accent-bg: #1a2e42;
+      --good:      #4caf7d;
+      --good-bg:   #0f2a1c;
+      --warn:      #e8a44a;
+      --warn-bg:   #2a1e08;
+      --bad:       #e05c5c;
+      --bad-bg:    #2a1010;
+      --rec:       #5ba8d8;
+      --rec-bg:    #102030;
+      --neutral:   #8a9ab0;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg:        #f5f6f8;
+    --surface:   #ffffff;
+    --surface2:  #eef0f3;
+    --border:    #d4d9e0;
+    --border2:   #e8eaed;
+    --text:      #1a2130;
+    --text-muted:#5a6478;
+    --text-dim:  #9aa3b2;
+    --accent:    #2e6da4;
+    --accent-bg: #e8f0f8;
+    --good:      #2a7d4f;
+    --good-bg:   #e6f4ec;
+    --warn:      #8a5c00;
+    --warn-bg:   #fef3dc;
+    --bad:       #b83232;
+    --bad-bg:    #fdeaea;
+    --rec:       #1a5c8a;
+    --rec-bg:    #ddeef9;
+    --neutral:   #4a5568;
+  }
+  :root[data-theme="dark"] {
+    --bg:        #0e1318;
+    --surface:   #161d26;
+    --surface2:  #1e2832;
+    --border:    #2a3545;
+    --border2:   #243040;
+    --text:      #dde3ed;
+    --text-muted:#7d8fa8;
+    --text-dim:  #445566;
+    --accent:    #5b9bd5;
+    --accent-bg: #1a2e42;
+    --good:      #4caf7d;
+    --good-bg:   #0f2a1c;
+    --warn:      #e8a44a;
+    --warn-bg:   #2a1e08;
+    --bad:       #e05c5c;
+    --bad-bg:    #2a1010;
+    --rec:       #5ba8d8;
+    --rec-bg:    #102030;
+    --neutral:   #8a9ab0;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  /* ── Page shell ── */
+  .page {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  /* ── Doc header ── */
+  .doc-header {
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 2px solid var(--border);
+  }
+  .doc-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    font-family: ui-monospace, "SFMono-Regular", monospace;
+  }
+  .doc-title {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 26px;
+    font-weight: normal;
+    line-height: 1.3;
+    color: var(--text);
+    text-wrap: balance;
+    margin-bottom: 14px;
+  }
+  .doc-meta {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .doc-meta span { display: flex; align-items: center; gap: 6px; }
+
+  .theme-btn {
+    margin-left: auto;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+  .theme-btn:hover { color: var(--text); }
+
+  /* ── Context box ── */
+  .context-box {
+    background: var(--accent-bg);
+    border: 1px solid var(--accent);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 14px 18px;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 36px;
+    line-height: 1.7;
+  }
+  .context-box strong { color: var(--accent); }
+
+  /* ── Section titles ── */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-family: ui-monospace, monospace;
+    margin-bottom: 14px;
+  }
+
+  h2 {
+    font-family: Georgia, serif;
+    font-size: 19px;
+    font-weight: normal;
+    color: var(--text);
+    margin-bottom: 16px;
+    text-wrap: balance;
+  }
+
+  /* ── Summary table ── */
+  .table-wrap { overflow-x: auto; margin-bottom: 40px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+    min-width: 560px;
+  }
+  thead th {
+    text-align: left;
+    padding: 9px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border);
+    font-family: ui-monospace, monospace;
+    background: var(--surface);
+  }
+  tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border2);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--surface2); }
+  .method-name {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    font-family: ui-monospace, monospace;
+  }
+  .pill-good   { background: var(--good-bg);  color: var(--good); }
+  .pill-warn   { background: var(--warn-bg);  color: var(--warn); }
+  .pill-bad    { background: var(--bad-bg);   color: var(--bad);  }
+  .pill-rec    { background: var(--rec-bg);   color: var(--rec);  }
+  .pill-neutral{ background: var(--surface2); color: var(--neutral); }
+
+  /* ── Method cards ── */
+  .methods { display: flex; flex-direction: column; gap: 20px; margin-bottom: 40px; }
+  .method-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: 0 8px 8px 0;
+    overflow: hidden;
+  }
+  .method-card.recommended { border-left-color: var(--rec); }
+  .method-card.caution     { border-left-color: var(--warn); }
+  .method-card.limited     { border-left-color: var(--bad); }
+
+  .card-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border2);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .card-title {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text);
+    flex: 1;
+  }
+  .card-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    font-weight: 400;
+  }
+  .card-body { padding: 16px 20px; }
+
+  .pro-con-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .pro-con-col h4 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-family: ui-monospace, monospace;
+    margin-bottom: 8px;
+  }
+  .pro-con-col ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .pro-con-col li {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 7px;
+    line-height: 1.5;
+  }
+  .pro-con-col li::before {
+    flex-shrink: 0;
+    margin-top: 1px;
+    font-size: 12px;
+  }
+  .pros li::before { content: "+"; color: var(--good); font-weight: 700; }
+  .cons li::before { content: "−"; color: var(--bad);  font-weight: 700; }
+
+  .prereq {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+  .prereq strong { color: var(--text); font-weight: 600; }
+
+  /* ── Recommendation ── */
+  .recommendation {
+    background: var(--rec-bg);
+    border: 1px solid var(--rec);
+    border-radius: 8px;
+    padding: 20px 22px;
+    margin-bottom: 40px;
+  }
+  .recommendation h3 {
+    font-family: Georgia, serif;
+    font-size: 16px;
+    font-weight: normal;
+    color: var(--rec);
+    margin-bottom: 10px;
+  }
+  .recommendation p {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.7;
+    margin-bottom: 10px;
+  }
+  .recommendation p:last-child { margin-bottom: 0; }
+
+  /* ── Prereq checklist ── */
+  .checklist {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 40px;
+  }
+  .checklist-header {
+    padding: 12px 18px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-family: ui-monospace, monospace;
+  }
+  .checklist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border2);
+    font-size: 14px;
+  }
+  .checklist-item:last-child { border-bottom: none; }
+  .check-status {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+  .check-done    { background: var(--good-bg); color: var(--good); }
+  .check-missing { background: var(--bad-bg);  color: var(--bad);  }
+  .check-partial { background: var(--warn-bg); color: var(--warn); }
+  .check-label { color: var(--text); line-height: 1.5; }
+  .check-note  { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+
+  @media (max-width: 580px) {
+    .page { padding: 28px 16px 56px; }
+    .pro-con-grid { grid-template-columns: 1fr; }
+    .doc-meta { gap: 12px; }
+    .theme-btn { margin-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <header class="doc-header">
+    <div class="doc-eyebrow">Meta Quest Teleop · 技術決策報告</div>
+    <h1 class="doc-title">VR 手把遙操作雙手臂機器人：控制方法選擇</h1>
+    <div class="doc-meta">
+      <span>情境：T 型架雙手臂 · MPC 控制 · 模擬環境</span>
+      <span>手把：Meta Quest（6-DoF）</span>
+      <button class="theme-btn" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark')">切換主題</button>
+    </div>
+  </header>
+
+  <!-- ── Context ── -->
+  <div class="context-box">
+    <strong>系統前提：</strong>T 型架雙手臂，臂長對標人體，MPC 接受 end-effector pose 目標。
+    VR 手把透過 ADB 傳輸姿態資料，座標系為 OpenXR（已可轉換至 ROS）。
+    目前 APK <strong>未發布頭盔（HMD）pose</strong>。
+  </div>
+
+  <!-- ── Summary table ── -->
+  <div class="section-label">方法總覽</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>方法</th>
+          <th>校正需求</th>
+          <th>直覺性</th>
+          <th>需補 HMD</th>
+          <th>T 架移動</th>
+          <th>建議</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="method-name">A. 絕對位置</td>
+          <td>一次性</td>
+          <td><span class="pill pill-good">高</span></td>
+          <td><span class="pill pill-neutral">不需要</span></td>
+          <td><span class="pill pill-warn">需重新校正</span></td>
+          <td><span class="pill pill-warn">固定架適用</span></td>
+        </tr>
+        <tr>
+          <td class="method-name">B. 相對位移 (World)</td>
+          <td>旋轉對齊</td>
+          <td><span class="pill pill-warn">中</span></td>
+          <td><span class="pill pill-neutral">不需要</span></td>
+          <td><span class="pill pill-good">自動適應</span></td>
+          <td><span class="pill pill-neutral">通用備選</span></td>
+        </tr>
+        <tr>
+          <td class="method-name">C. 頭盔相對姿態</td>
+          <td>不需要</td>
+          <td><span class="pill pill-good">最高</span></td>
+          <td><span class="pill pill-bad">需補實作</span></td>
+          <td><span class="pill pill-good">自動適應</span></td>
+          <td><span class="pill pill-rec">長期最佳</span></td>
+        </tr>
+        <tr>
+          <td class="method-name">D. 速度控制 (Twist)</td>
+          <td>無</td>
+          <td><span class="pill pill-bad">低</span></td>
+          <td><span class="pill pill-neutral">不需要</span></td>
+          <td><span class="pill pill-good">自動適應</span></td>
+          <td><span class="pill pill-neutral">MPC 整合佳</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Method cards ── -->
+  <div class="section-label">方法詳細分析</div>
+  <div class="methods">
+
+    <!-- A -->
+    <div class="method-card caution">
+      <div class="card-header">
+        <div>
+          <div class="card-title">A．絕對位置模式</div>
+          <div class="card-subtitle">VR 手把世界坐標 → 機器手臂 end-effector 世界坐標（直接對應）</div>
+        </div>
+        <span class="pill pill-warn">固定架適用</span>
+      </div>
+      <div class="card-body">
+        <div class="pro-con-grid">
+          <div class="pro-con-col pros">
+            <h4>優點</h4>
+            <ul>
+              <li>操作最直覺，手在哪機器手就在哪</li>
+              <li>臂長對標人體時 scale factor ≈ 1，不需縮放</li>
+              <li>模擬環境中 URDF frame 位置固定，對應關係只需建立一次</li>
+              <li>不需 HMD pose</li>
+            </ul>
+          </div>
+          <div class="pro-con-col cons">
+            <h4>限制</h4>
+            <ul>
+              <li>依賴 meta_world 原點穩定，每次開機位置不同需重新對齊</li>
+              <li>T 型架若移動，需重新建立坐標系對應</li>
+              <li>容易將機器手臂逼進奇異點或超出可達範圍</li>
+            </ul>
+          </div>
+        </div>
+        <div class="prereq">
+          <strong>實作重點：</strong>建立固定轉換矩陣 <code>T_meta_to_robot</code>，對應 meta_world 原點與機器人基座 frame。模擬環境中可從 URDF 直接推算，毋需實體標定。
+        </div>
+      </div>
+    </div>
+
+    <!-- B -->
+    <div class="method-card caution">
+      <div class="card-header">
+        <div>
+          <div class="card-title">B．相對位移模式（World Frame Delta）</div>
+          <div class="card-subtitle">計算手把每 tick 的 ΔT，疊加到機器手臂當前 end-effector pose</div>
+        </div>
+        <span class="pill pill-neutral">通用備選</span>
+      </div>
+      <div class="card-body">
+        <div class="pro-con-grid">
+          <div class="pro-con-col pros">
+            <h4>優點</h4>
+            <ul>
+              <li>不需原點校正，T 型架移動不影響操作</li>
+              <li>可加入 Clutch（按住 grip 才追蹤）隨時重置手部位置</li>
+              <li>支援 scaling：小幅移動 → 精細控制</li>
+            </ul>
+          </div>
+          <div class="pro-con-col cons">
+            <h4>限制</h4>
+            <ul>
+              <li>操作者感覺是「控制移動量」而非「控制位置」，認知負擔較高</li>
+              <li>手把姿態與機器手臂姿態不一致時，移動方向可能不直覺</li>
+              <li>長時間累積誤差，需定期重置</li>
+            </ul>
+          </div>
+        </div>
+        <div class="prereq">
+          <strong>實作重點：</strong>需要定義 Engage 機制（如 grip trigger 按住才追蹤 delta）以支援手部重置。需一次性旋轉對齊 meta_world 與 robot world 的軸向。
+        </div>
+      </div>
+    </div>
+
+    <!-- C -->
+    <div class="method-card recommended">
+      <div class="card-header">
+        <div>
+          <div class="card-title">C．頭盔相對姿態模式</div>
+          <div class="card-subtitle">發布手把相對 HMD 的 pose，以操作者視角為控制基準</div>
+        </div>
+        <span class="pill pill-rec">長期最佳</span>
+      </div>
+      <div class="card-body">
+        <div class="pro-con-grid">
+          <div class="pro-con-col pros">
+            <h4>優點</h4>
+            <ul>
+              <li>完全不需要任何坐標系校正</li>
+              <li>「往前推」永遠對應機器手臂往前，最符合人體直覺</li>
+              <li>T 型架移動、meta_world 原點改變皆不影響</li>
+              <li>操作者轉向，控制方向自動跟著轉</li>
+            </ul>
+          </div>
+          <div class="pro-con-col cons">
+            <h4>限制</h4>
+            <ul>
+              <li>需要 APK 發布 HMD pose（目前尚未實作）</li>
+              <li>需在 reader.py 新增 <code>get_head_transform_ros()</code></li>
+              <li>操作者需面對機器人站立，偏轉角度過大時直覺性下降</li>
+            </ul>
+          </div>
+        </div>
+        <div class="prereq">
+          <strong>需補實作：</strong>① OculusTeleop.cpp 將 <code>HeadPose</code> 加入 logcat 輸出；② reader.py 解析 <code>"h"</code> key 並新增 <code>get_head_transform_ros()</code>；③ ROS2 node 計算 <code>T_hand_rel = T_hmd⁻¹ @ T_hand</code>。
+        </div>
+      </div>
+    </div>
+
+    <!-- D -->
+    <div class="method-card limited">
+      <div class="card-header">
+        <div>
+          <div class="card-title">D．速度控制模式（Twist）</div>
+          <div class="card-subtitle">手把傾斜角度決定 end-effector 移動速度與方向</div>
+        </div>
+        <span class="pill pill-neutral">MPC 整合佳</span>
+      </div>
+      <div class="card-body">
+        <div class="pro-con-grid">
+          <div class="pro-con-col pros">
+            <h4>優點</h4>
+            <ul>
+              <li>對延遲最不敏感，輸入是方向意圖而非精確位置</li>
+              <li>直接以 twist 指令餵給 MPC，整合最簡單</li>
+              <li>容易加入速度限制做安全保護</li>
+            </ul>
+          </div>
+          <div class="pro-con-col cons">
+            <h4>限制</h4>
+            <ul>
+              <li>學習曲線最高，操作不直覺</li>
+              <li>靜止需手把保持在基準姿態，長時間易疲勞</li>
+              <li>精確定位困難，不適合需要精細操作的任務</li>
+            </ul>
+          </div>
+        </div>
+        <div class="prereq">
+          <strong>適合場景：</strong>大範圍快速移動、安全測試階段、或 MPC 已有強健軌跡跟蹤能力時作為輔助模式。
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Recommendation ── -->
+  <div class="section-label">建議路徑</div>
+  <div class="recommendation">
+    <h3>分階段實作建議</h3>
+    <p>
+      <strong>短期（模擬驗證）：</strong>以方法 A（絕對位置）先行。模擬環境中 URDF frame 固定，
+      從 tf2 查詢手臂基座位置建立 <code>T_meta_to_robot</code>，可快速驗證 MPC 接收 end-effector 目標的整體流程，
+      不需修改 APK。
+    </p>
+    <p>
+      <strong>中期（補齊 HMD pose）：</strong>補實作 APK HMD pose 輸出與 reader.py 對應方法，
+      切換至方法 C（頭盔相對姿態）。這是對 T 型架可移動情境最完整的解，
+      也是實體部署時最不需要重新校正的方案。
+    </p>
+    <p>
+      <strong>操作體驗補強：</strong>無論選哪種方法，建議加入 Clutch 機制（grip trigger engage）
+      讓操作者可隨時凍結機器手臂並重置手部位置，減少超出可達範圍的情況。
+    </p>
+  </div>
+
+  <!-- ── Prereqs ── -->
+  <div class="section-label">目前實作狀態</div>
+  <div class="checklist">
+    <div class="checklist-header">前置條件檢查清單</div>
+    <div class="checklist-item">
+      <div class="check-status check-done">✓</div>
+      <div>
+        <div class="check-label">Meta Quest APK 發布控制器姿態</div>
+        <div class="check-note">grip / model / pointer 三種 pose 均透過 logcat 傳輸</div>
+      </div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-status check-done">✓</div>
+      <div>
+        <div class="check-label">reader.py 提供 ROS 坐標系轉換</div>
+        <div class="check-note"><code>get_hand_controller_transform_ros()</code> 已實作</div>
+      </div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-status check-done">✓</div>
+      <div>
+        <div class="check-label">ROS2 bridge node 架構</div>
+        <div class="check-note">QuestBridgeNode 已設計，發布 /tf、PoseStamped、Joy</div>
+      </div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-status check-missing">✗</div>
+      <div>
+        <div class="check-label">APK 發布 HMD（頭盔）pose</div>
+        <div class="check-note">HeadPose 已在 C++ 中讀取但未加入 logcat 輸出，方法 C 的前置條件</div>
+      </div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-status check-missing">✗</div>
+      <div>
+        <div class="check-label">reader.py <code>get_head_transform_ros()</code></div>
+        <div class="check-note">QuestBridgeNode 已呼叫此方法，但尚未實作，目前靜默回傳 None</div>
+      </div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-status check-missing">✗</div>
+      <div>
+        <div class="check-label">MPC end-effector pose 介面確認</div>
+        <div class="check-note">需確認 MPC 接受的 pose 格式與 frame 定義，以確保轉換矩陣正確</div>
+      </div>
+    </div>
+    <div class="checklist-item">
+      <div class="check-status check-partial">~</div>
+      <div>
+        <div class="check-label">坐標系對齊（T_meta_to_robot）</div>
+        <div class="check-note">方法 A 需一次性建立；方法 C 實作後此步驟可省略</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+  // Sync theme toggle with OS preference on load
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+</script>
+</body>
+</html>
