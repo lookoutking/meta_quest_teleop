@@ -543,6 +543,31 @@ class MetaQuestReader:
         transform_ros = T_static @ transform_openxr
         return transform_ros
 
+    def get_head_transform_ros(self) -> np.ndarray | None:
+        """Get the 4x4 transformation matrix for the HMD (headset).
+
+        The transform is in the ROS coordinate system, converted from OpenXR
+        using the same static quaternion [0.5, -0.5, -0.5, 0.5] as the
+        hand controllers.
+
+        Requires the APK to output HeadPose in the logcat stream (key 'h').
+
+        Returns:
+            4x4 transformation matrix in ROS coordinates, or None if not
+            available (APK does not yet output HMD pose).
+        """
+        if "h" not in self._latest_transforms:
+            return None
+
+        with self._lock:
+            transform_openxr = self._latest_transforms["h"].copy()
+
+        Q = Rotation.from_quat([0.5, -0.5, -0.5, 0.5])
+        T_static = np.eye(4)
+        T_static[:3, :3] = Q.as_matrix()
+
+        return T_static @ transform_openxr
+
     def get_button_state(self, button_name: str) -> bool:
         """Get current state of a button.
 

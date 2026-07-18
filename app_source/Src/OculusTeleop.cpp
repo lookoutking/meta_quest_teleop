@@ -1301,6 +1301,7 @@ void ovrVrInputStandard::RenderRunningFrame(
       buttons_ss << Buttons->current_to_string(side);
       first = false;
     }
+    output_ss << "|h:" << TransformationMatrixToString(OVR::Matrix4f(Tracking.HeadPose.Pose));
     output_ss << "&" << buttons_ss.str();
     __android_log_print(ANDROID_LOG_INFO, "wE9ryARX", "%s",
                         output_ss.str().c_str());
