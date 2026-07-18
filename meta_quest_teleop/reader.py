@@ -479,6 +479,7 @@ class MetaQuestReader:
     def get_hand_controller_transform_openxr(
         self,
         hand: Literal["left", "right", "l", "r"] = "right",
+        pose_type: Literal["grip", "model", "pointer"] = "grip",
     ) -> np.ndarray | None:
         """Get the 4x4 transformation matrix for a hand controller.
 
@@ -487,15 +488,17 @@ class MetaQuestReader:
 
         Args:
             hand: Which hand ('left', 'right', 'l', or 'r')
+            pose_type: Which pose ('grip', 'model', or 'pointer')
 
         Returns:
             4x4 numpy array transformation matrix, or None if not
             available
         """
         hand_key = self._normalize_hand_key(hand)
+        pose_suffix = {"grip": "g", "model": "m", "pointer": "p"}[pose_type]
 
-        # Use hand key directly as the pointer transform key
-        key = hand_key
+        # Key format from APK: e.g. 'rg', 'lm', 'rp'
+        key = hand_key + pose_suffix
         if key in self._latest_transforms:
             with self._lock:
                 transform_openxr = self._latest_transforms[key].copy()
@@ -507,6 +510,7 @@ class MetaQuestReader:
     def get_hand_controller_transform_ros(
         self,
         hand: Literal["left", "right", "l", "r"] = "right",
+        pose_type: Literal["grip", "model", "pointer"] = "grip",
     ) -> np.ndarray | None:
         """Get the 4x4 transformation matrix for a hand controller.
 
@@ -520,12 +524,13 @@ class MetaQuestReader:
 
         Args:
             hand: Which hand ('left', 'right', 'l', or 'r')
+            pose_type: Which pose ('grip', 'model', or 'pointer')
 
         Returns:
             4x4 transformation matrix in ROS coordinates, or None if not
             available
         """
-        transform_openxr = self.get_hand_controller_transform_openxr(hand)
+        transform_openxr = self.get_hand_controller_transform_openxr(hand, pose_type)
 
         if transform_openxr is None:
             return None
