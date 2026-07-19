@@ -409,7 +409,11 @@ class MetaQuestReader:
             for value in values:
                 if not value:
                     continue
-                transform[r][c] = float(value)
+                try:
+                    transform[r][c] = float(value)
+                except ValueError:
+                    count = 0
+                    break
                 c += 1
                 if c >= 4:
                     c = 0
