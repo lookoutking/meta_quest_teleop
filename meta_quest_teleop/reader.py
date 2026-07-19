@@ -501,8 +501,11 @@ class MetaQuestReader:
         hand_key = self._normalize_hand_key(hand)
         pose_suffix = {"grip": "g", "model": "m", "pointer": "p"}[pose_type]
 
-        # Key format from APK: e.g. 'rg', 'lm', 'rp'
+        # Newer APK outputs compound keys e.g. 'rg', 'lm', 'rp'.
+        # Older APK (GitHub release) outputs plain 'r' / 'l' (grip only).
         key = hand_key + pose_suffix
+        if key not in self._latest_transforms:
+            key = hand_key  # fall back to old single-char key
         if key in self._latest_transforms:
             with self._lock:
                 transform_openxr = self._latest_transforms[key].copy()
